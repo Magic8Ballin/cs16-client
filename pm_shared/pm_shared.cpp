@@ -33,6 +33,7 @@
 const int MAX_TEXTURES           = 1024; // max number of textures loaded
 const int MAX_TEXTURENAME_LENGHT = 17;   // only load first n chars of name
 const float HalfHumanHeight = 36.0f;
+const float landing_momentum_scale = 0.70f;
 
 #ifdef CLIENT_DLL
 	int iJumpSpectator;
@@ -913,14 +914,6 @@ void PM_WalkMove()
 	float downdist, updist;
 
 	pmtrace_t trace;
-
-	if (pmove->fuser2 > 0.0)
-	{
-		float flRatio = (100 - pmove->fuser2 * 0.001 * 19) * 0.01;
-
-		pmove->velocity[0] *= flRatio;
-		pmove->velocity[1] *= flRatio;
-	}
 
 	// Copy movement amounts
 	fmove = pmove->cmd.forwardmove;
@@ -3003,6 +2996,8 @@ void PM_PlayerMove(qboolean server)
 				pmove->oldbuttons &= ~IN_JUMP;
 			}
 
+			qboolean wasAirborne = (pmove->onground == -1);
+
 			// Fricion is handled before we add in any base velocity. That way, if we are on a conveyor,
 			// we don't slow when standing still, relative to the conveyor.
 			if (pmove->onground != -1)
@@ -3035,6 +3030,12 @@ void PM_PlayerMove(qboolean server)
 
 			// Make sure velocity is valid.
 			PM_CheckVelocity();
+
+			if (wasAirborne && pmove->onground != -1)
+			{
+				pmove->velocity[0] *= landing_momentum_scale;
+				pmove->velocity[1] *= landing_momentum_scale;
+			}
 
 			// Add any remaining gravitational component.
 			if (!PM_InWater())
