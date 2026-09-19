@@ -77,9 +77,12 @@ void EV_FireAK47( event_args_t *args )
 	VectorCopy( forward, vecAiming );
 
 	Vector vSpread( args->fparam1, args->fparam2, 0.0f );
-	EV_HLDM_FireBullets( idx,
-		forward, right,	up,
-		1, vecSrc, vecAiming,
-		vSpread, 8192.0, BULLET_PLAYER_762MM,
-		2 );
+	if (!args->bparam2)
+	{
+		EV_HLDM_FireBullets( idx,
+			forward, right,	up,
+			1, vecSrc, vecAiming,
+			vSpread, 8192.0, BULLET_PLAYER_762MM,
+			2 );
+	}
 }

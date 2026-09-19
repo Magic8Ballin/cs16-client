@@ -40,6 +40,16 @@ struct WeaponMechanicsConfig
 	float indexDecayRate;
 	float viewScale;
 	float varianceScale;
+	bool procedural;
+	bool fullAuto;
+	int recoilSeed;
+	float recoilAngle;
+	float recoilAngleVariance;
+	float recoilMagnitude;
+	float recoilMagnitudeVariance;
+	float recoilSmoothing;
+	float suppressionShots;
+	float suppressionFactor;
 	bool wrapPattern;
 	int patternCount;
 	RecoilPoint pattern[kMaxRecoilPoints];
@@ -84,6 +94,17 @@ inline WeaponMechanicsConfig Defaults(bool ak47)
 	c.decayDelayCycles = ak47 ? 2.0f : 1.5f;
 	c.indexDecayRate = ak47 ? 5.0f : 4.0f;
 	c.viewScale = 1.0f;
+	c.procedural = true;
+	c.fullAuto = ak47;
+	c.recoilSeed = ak47 ? 223 : 1454;
+	c.recoilAngle = 0.0f;
+	c.recoilAngleVariance = ak47 ? 70.0f : 0.0f;
+	c.recoilMagnitude = ak47 ? 33.0f : 36.0f;
+	c.recoilMagnitudeVariance = ak47 ? 2.0f : 16.0f;
+	c.recoilSmoothing = 0.55f;
+	c.suppressionShots = ak47 ? 4.0f : 0.0f;
+	c.suppressionFactor = 0.75f;
+	c.viewScale = ak47 ? 0.040f : 0.075f;
 	c.wrapPattern = !ak47;
 	static const RecoilPoint akPattern[] = {
 		{1.70f,0.00f},{1.82f,0.10f},{1.94f,-0.12f},{2.04f,0.20f},
@@ -187,9 +208,60 @@ inline float ComputeInaccuracy(const WeaponMechanicsConfig &config, const Weapon
 	return result + state.firePenalty;
 }
 
-inline RecoilPoint GetRecoil(const WeaponMechanicsConfig &config, float recoilIndex)
+inline RecoilPoint GetRecoil(const WeaponMechanicsConfig &config, float recoilIndex, int selectionSeed = -1)
 {
 	RecoilPoint result = { 0.0f, 0.0f };
+	if (config.procedural)
+	{
+		const int ntab = 32;
+		long idum = config.recoilSeed < 0 ? config.recoilSeed : -config.recoilSeed;
+		long iy = 0;
+		long iv[ntab];
+		float angle = 0.0f;
+		float magnitude = 0.0f;
+		const int wanted = (selectionSeed >= 0 ? selectionSeed : (int)recoilIndex) & 63;
+		for (int shot = 0; shot <= wanted; ++shot)
+		{
+			float randoms[2];
+			for (int sample = 0; sample < 2; ++sample)
+			{
+				int j, k;
+				if (idum <= 0 || !iy)
+				{
+					idum = -idum < 1 ? 1 : -idum;
+					for (j = ntab + 7; j >= 0; --j)
+					{
+						k = (int)(idum / 127773);
+						idum = 16807 * (idum - k * 127773) - 2836 * k;
+						if (idum < 0) idum += 2147483647;
+						if (j < ntab) iv[j] = idum;
+					}
+					iy = iv[0];
+				}
+				k = (int)(idum / 127773);
+				idum = 16807 * (idum - k * 127773) - 2836 * k;
+				if (idum < 0) idum += 2147483647;
+				j = (int)(iy / 67108865);
+				iy = iv[j];
+				iv[j] = idum;
+				randoms[sample] = (float)(iy * (1.0 / 2147483647.0));
+			}
+			const float newAngle = config.recoilAngle + ((randoms[0] * 2.0f) - 1.0f) * config.recoilAngleVariance * config.varianceScale;
+			const float newMagnitude = config.recoilMagnitude + ((randoms[1] * 2.0f) - 1.0f) * config.recoilMagnitudeVariance * config.varianceScale;
+			if (config.fullAuto && shot > 0)
+			{
+				angle = Lerp(angle, newAngle, config.recoilSmoothing);
+				magnitude = Lerp(magnitude, newMagnitude, config.recoilSmoothing);
+			}
+			else { angle = newAngle; magnitude = newMagnitude; }
+			if (config.fullAuto && shot < (int)config.suppressionShots && config.suppressionShots > 0.0f)
+				magnitude *= Lerp(config.suppressionFactor, 1.0f, shot / config.suppressionShots);
+		}
+		const float radians = angle * 0.01745329251994329577f;
+		result.vertical = cosf(radians) * magnitude * config.viewScale;
+		result.horizontal = -sinf(radians) * magnitude * config.viewScale;
+		return result;
+	}
 	if (config.patternCount <= 0)
 		return result;
 	int index = (int)recoilIndex;
@@ -289,9 +361,22 @@ inline bool ParseConfig(const char *json, WeaponMechanicsConfig &config)
 		&config.indexDecayRate, &config.viewScale, &config.varianceScale };
 	for (unsigned int i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i)
 		if (!ReadFloat(json, keys[i], *values[i])) return false;
+	const char *mode = FindValue(json, "mode");
+	config.procedural = mode && strstr(mode, "procedural") && (!strchr(mode, ',') || strstr(mode, "procedural") < strchr(mode, ','));
+	if (config.procedural)
+	{
+		float seed = 0.0f;
+		if (!ReadBool(json, "fullAuto", config.fullAuto) || !ReadFloat(json, "seed", seed)
+			|| !ReadFloat(json, "angle", config.recoilAngle) || !ReadFloat(json, "angleVariance", config.recoilAngleVariance)
+			|| !ReadFloat(json, "magnitude", config.recoilMagnitude) || !ReadFloat(json, "magnitudeVariance", config.recoilMagnitudeVariance)
+			|| !ReadFloat(json, "smoothing", config.recoilSmoothing) || !ReadFloat(json, "suppressionShots", config.suppressionShots)
+			|| !ReadFloat(json, "suppressionFactor", config.suppressionFactor)) return false;
+		config.recoilSeed = (int)seed;
+		config.patternCount = 0;
+	}
 	const char *endPolicy = FindValue(json, "endPolicy");
 	config.wrapPattern = endPolicy && strstr(endPolicy, "wrap") && (!strchr(endPolicy, ',') || strstr(endPolicy, "wrap") < strchr(endPolicy, ','));
-	if (!ParsePattern(json, config)) return false;
+	if (!config.procedural && !ParsePattern(json, config)) return false;
 	return config.baseSpread >= 0.0f && config.standInaccuracy >= 0.0f && config.crouchInaccuracy >= 0.0f
 		&& config.moveInaccuracy >= 0.0f && config.airInaccuracy >= 0.0f && config.ladderInaccuracy >= 0.0f
 		&& config.moveStartFraction >= 0.0f && config.moveFullFraction > config.moveStartFraction
@@ -299,7 +384,9 @@ inline bool ParseConfig(const char *json, WeaponMechanicsConfig &config)
 		&& config.recoveryStandEarly > 0.0f && config.recoveryStandFinal > 0.0f
 		&& config.recoveryCrouchEarly > 0.0f && config.recoveryCrouchFinal > 0.0f
 		&& config.recoveryTransitionEnd >= config.recoveryTransitionStart && config.maxFirePenalty >= 0.0f
-		&& config.cycleTime > 0.0f && config.decayDelayCycles >= 0.0f && config.indexDecayRate >= 0.0f;
+		&& config.cycleTime > 0.0f && config.decayDelayCycles >= 0.0f && config.indexDecayRate >= 0.0f
+		&& (!config.procedural || (config.recoilMagnitude >= 0.0f && config.recoilMagnitudeVariance >= 0.0f
+			&& config.recoilSmoothing >= 0.0f && config.recoilSmoothing <= 1.0f && config.suppressionFactor >= 0.0f));
 }
 }
 

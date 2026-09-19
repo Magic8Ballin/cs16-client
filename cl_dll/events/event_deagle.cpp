@@ -85,9 +85,12 @@ void EV_FireDEAGLE( event_args_t *args )
 	EV_GetGunPosition( args, vecSrc, origin );
 	Vector vSpread( args->fparam1, args->fparam2, 0.0f );
 	
-	EV_HLDM_FireBullets( idx,
-		forward, right,	up,
-		1, vecSrc, forward,
-		vSpread, 8192.0, BULLET_PLAYER_50AE,
-		2 );
+	if (!args->bparam2)
+	{
+		EV_HLDM_FireBullets( idx,
+			forward, right,	up,
+			1, vecSrc, forward,
+			vSpread, 8192.0, BULLET_PLAYER_50AE,
+			2 );
+	}
 }
