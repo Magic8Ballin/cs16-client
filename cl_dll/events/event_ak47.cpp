@@ -52,7 +52,10 @@ void EV_FireAK47( event_args_t *args )
 	if ( EV_IsLocal( args->entindex ) )
 	{
 		++g_iShotsFired;
-		gEngfuncs.pEventAPI->EV_WeaponAnimation(Com_RandomLong(AK47_SHOOT1, AK47_SHOOT3), 2);
+		// Randomly switching sequences every 95.5 ms makes the viewmodel appear
+		// to freeze and snap even though the predicted weapon keeps firing.
+		// A stable sequence preserves continuous visual cadence during a spray.
+		gEngfuncs.pEventAPI->EV_WeaponAnimation(AK47_SHOOT1, 2);
 		EV_MuzzleFlash();
 		if( !gHUD.cl_righthand->value )
 		{
