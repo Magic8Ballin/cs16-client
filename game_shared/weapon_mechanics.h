@@ -86,13 +86,13 @@ inline WeaponMechanicsConfig Defaults(bool ak47)
 	c.viewScale = 1.0f;
 	c.wrapPattern = !ak47;
 	static const RecoilPoint akPattern[] = {
-		{0.82f,0.00f},{0.96f,0.08f},{1.08f,-0.10f},{1.18f,0.16f},
-		{1.25f,-0.18f},{1.30f,0.24f},{1.34f,0.30f},{1.36f,-0.32f},
-		{1.38f,-0.38f},{1.40f,0.40f},{1.42f,0.46f},{1.43f,-0.48f},
-		{1.44f,-0.52f},{1.45f,0.50f},{1.45f,0.42f},{1.45f,-0.38f}
+		{1.70f,0.00f},{1.82f,0.10f},{1.94f,-0.12f},{2.04f,0.20f},
+		{2.12f,-0.24f},{2.18f,0.32f},{2.24f,0.42f},{2.28f,-0.48f},
+		{2.32f,-0.58f},{2.36f,0.62f},{2.40f,0.72f},{2.42f,-0.76f},
+		{2.44f,-0.82f},{2.46f,0.80f},{2.46f,0.68f},{2.46f,-0.62f}
 	};
 	static const RecoilPoint deaglePattern[] = {
-		{2.20f,0.08f},{2.35f,-0.14f},{2.45f,0.18f},{2.50f,-0.10f}
+		{5.20f,0.18f},{5.55f,-0.30f},{5.80f,0.38f},{6.00f,-0.22f}
 	};
 	const RecoilPoint *points = ak47 ? akPattern : deaglePattern;
 	c.patternCount = ak47 ? 16 : 4;

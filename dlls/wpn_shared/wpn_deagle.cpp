@@ -177,6 +177,7 @@ void CDEAGLE::DEAGLEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 	const gw::ShotOffset offset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, config.baseSpread);
 	vecAiming = vecAiming + gpGlobals->v_right * offset.x + gpGlobals->v_up * offset.y;
 	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 4096, 2, BULLET_PLAYER_50AE, DEAGLE_DAMAGE, DEAGLE_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
+	vecDir = Vector(offset.x, offset.y, 0.0f);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
