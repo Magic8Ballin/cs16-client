@@ -57,6 +57,14 @@ void EV_FireAK47( event_args_t *args )
 		// three deterministically so every predicted shot advances visually.
 		const int shootAnimation = AK47_SHOOT1 + ((g_iShotsFired - 1) % 3);
 		gEngfuncs.pEventAPI->EV_WeaponAnimation(shootAnimation, 2);
+		cl_entity_t *viewModel = gEngfuncs.GetViewModel();
+		if (viewModel)
+		{
+			// The model's shoot sequences are 0.8 seconds long, while the AK
+			// cycles every 0.0955 seconds. Play the complete animation once per
+			// shot instead of repeatedly restarting its opening frames.
+			viewModel->curstate.framerate = 0.8f / 0.0955f;
+		}
 		EV_MuzzleFlash();
 		if( !gHUD.cl_righthand->value )
 		{
