@@ -40,6 +40,16 @@ void EV_FireAK47( event_args_t *args )
 	Vector vecSrc, vecAiming;
 
 	int idx = args->entindex;
+	static int lastEventShooter = -1;
+	static float lastEventTime = -1.0f;
+	const float eventTime = gEngfuncs.GetClientTime();
+	const bool replayedLocalEvent = EV_IsLocal(idx) && lastEventShooter == idx && lastEventTime >= 0.0f
+		&& eventTime - lastEventTime < 0.075f;
+	if (replayedLocalEvent)
+		return;
+	lastEventShooter = idx;
+	lastEventTime = eventTime;
+
 	Vector origin( args->origin );
 	Vector angles(
 		args->iparam1 / 100.0f + args->angles[0],
@@ -89,18 +99,9 @@ void EV_FireAK47( event_args_t *args )
 	VectorCopy( forward, vecAiming );
 
 	Vector vSpread( args->fparam1, args->fparam2, 0.0f );
-	static int lastImpactShooter = -1;
-	static float lastImpactTime = -1.0f;
-	const float impactTime = gEngfuncs.GetClientTime();
-	const bool replayedImpact = lastImpactShooter == idx && lastImpactTime >= 0.0f && impactTime - lastImpactTime < 0.05f;
-	lastImpactShooter = idx;
-	lastImpactTime = impactTime;
-	if (!replayedImpact)
-	{
-		EV_HLDM_FireBullets( idx,
-			forward, right,	up,
-			1, vecSrc, vecAiming,
-			vSpread, 8192.0, BULLET_PLAYER_762MM,
-			2 );
-	}
+	EV_HLDM_FireBullets( idx,
+		forward, right,	up,
+		1, vecSrc, vecAiming,
+		vSpread, 8192.0, BULLET_PLAYER_762MM,
+		2 );
 }
