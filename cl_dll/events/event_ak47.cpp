@@ -52,10 +52,11 @@ void EV_FireAK47( event_args_t *args )
 	if ( EV_IsLocal( args->entindex ) )
 	{
 		++g_iShotsFired;
-		// Randomly switching sequences every 95.5 ms makes the viewmodel appear
-		// to freeze and snap even though the predicted weapon keeps firing.
-		// A stable sequence preserves continuous visual cadence during a spray.
-		gEngfuncs.pEventAPI->EV_WeaponAnimation(AK47_SHOOT1, 2);
+		// Random selection can repeat one sequence several shots in a row, while
+		// restarting one fixed sequence every 95.5 ms appears frozen. Cycle all
+		// three deterministically so every predicted shot advances visually.
+		const int shootAnimation = AK47_SHOOT1 + ((g_iShotsFired - 1) % 3);
+		gEngfuncs.pEventAPI->EV_WeaponAnimation(shootAnimation, 2);
 		EV_MuzzleFlash();
 		if( !gHUD.cl_righthand->value )
 		{
