@@ -85,7 +85,13 @@ void EV_FireDEAGLE( event_args_t *args )
 	EV_GetGunPosition( args, vecSrc, origin );
 	Vector vSpread( args->fparam1, args->fparam2, 0.0f );
 	
-	if (!args->bparam2)
+	static int lastImpactShooter = -1;
+	static float lastImpactTime = -1.0f;
+	const float impactTime = gEngfuncs.GetClientTime();
+	const bool replayedImpact = lastImpactShooter == idx && lastImpactTime >= 0.0f && impactTime - lastImpactTime < 0.05f;
+	lastImpactShooter = idx;
+	lastImpactTime = impactTime;
+	if (!replayedImpact)
 	{
 		EV_HLDM_FireBullets( idx,
 			forward, right,	up,
