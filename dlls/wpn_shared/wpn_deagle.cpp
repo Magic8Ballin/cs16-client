@@ -14,11 +14,37 @@
 ****/
 
 #include "stdafx.h"
+#include "hud.h"
 #include "cbase.h"
 #include "player.h"
 #include "weapons.h"
 
 LINK_ENTITY_TO_CLASS(weapon_deagle, CDEAGLE)
+
+static const gw::WeaponMechanicsConfig &DeagleMechanics()
+{
+	static bool loaded = false;
+	static gw::WeaponMechanicsConfig config;
+	if (!loaded)
+	{
+		loaded = true;
+		config = gw::Defaults(false);
+		int length = 0;
+		char *json = (char *)gEngfuncs.COM_LoadFile("configs/weapons/deagle.json", 5, &length);
+		gw::WeaponMechanicsConfig parsed;
+		if (json && gw::ParseConfig(json, parsed)) config = parsed;
+		else gEngfuncs.Con_Printf("Gloveworks: invalid/missing configs/weapons/deagle.json; using safe defaults\n");
+		if (json) gEngfuncs.COM_FreeFile(json);
+	}
+	return config;
+}
+
+static void ResetDeagleMechanics(CDEAGLE *weapon)
+{
+	weapon->m_ModernState.firePenalty = 0.0f;
+	weapon->m_ModernState.recoilIndex = 0.0f;
+	weapon->m_ModernState.lastShotTime = 0.0f;
+}
 
 void CDEAGLE::Spawn(void)
 {
@@ -33,6 +59,7 @@ void CDEAGLE::Spawn(void)
 	m_iWeaponState &= ~WPNSTATE_SHIELD_DRAWN;
 	m_fMaxSpeed = DEAGLE_MAX_SPEED;
 	m_flAccuracy = 0.9f;
+	ResetDeagleMechanics(this);
 
 	FallInit();
 }
@@ -76,6 +103,7 @@ BOOL CDEAGLE::Deploy(void)
 	m_fMaxSpeed = DEAGLE_MAX_SPEED;
 	m_iWeaponState &= ~WPNSTATE_SHIELD_DRAWN;
 	m_pPlayer->m_bShieldDrawn = false;
+	ResetDeagleMechanics(this);
 
 	if (m_pPlayer->HasShield())
 		return DefaultDeploy("models/shield/v_shield_deagle.mdl", "models/shield/p_shield_deagle.mdl", DEAGLE_DRAW, "shieldgun", UseDecrement() != FALSE);
@@ -85,22 +113,12 @@ BOOL CDEAGLE::Deploy(void)
 
 void CDEAGLE::PrimaryAttack(void)
 {
-	if (!(m_pPlayer->pev->flags & FL_ONGROUND))
-	{
-		DEAGLEFire(1.5 * (1 - m_flAccuracy), 0.3, FALSE);
-	}
-	else if (m_pPlayer->pev->velocity.Length2D() > 0)
-	{
-		DEAGLEFire(0.25 * (1 - m_flAccuracy), 0.3, FALSE);
-	}
-	else if (m_pPlayer->pev->flags & FL_DUCKING)
-	{
-		DEAGLEFire(0.115 * (1 - m_flAccuracy), 0.3, FALSE);
-	}
-	else
-	{
-		DEAGLEFire(0.13 * (1 - m_flAccuracy), 0.3, FALSE);
-	}
+	const gw::WeaponMechanicsConfig &config = DeagleMechanics();
+	gw::UpdateState(config, m_ModernState, gpGlobals->time, (m_pPlayer->pev->flags & FL_DUCKING) != 0);
+	const float inaccuracy = gw::ComputeInaccuracy(config, m_ModernState, m_pPlayer->pev->velocity.Length2D(),
+		GetMaxSpeed(), (m_pPlayer->pev->flags & FL_DUCKING) != 0, (m_pPlayer->pev->flags & FL_ONGROUND) != 0,
+		m_pPlayer->pev->movetype == MOVETYPE_FLY);
+	DEAGLEFire(inaccuracy, config.cycleTime + 0.075f, FALSE);
 }
 
 void CDEAGLE::SecondaryAttack(void)
@@ -118,20 +136,6 @@ void CDEAGLE::DEAGLEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 	if (++m_iShotsFired > 1)
 	{
 		return;
-	}
-
-	if (m_flLastFire != 0.0)
-	{
-		m_flAccuracy -= (0.4f - (gpGlobals->time - m_flLastFire)) * 0.35f;
-
-		if (m_flAccuracy > 0.9f)
-		{
-			m_flAccuracy = 0.9f;
-		}
-		else if (m_flAccuracy < 0.55f)
-		{
-			m_flAccuracy = 0.55f;
-		}
 	}
 
 	m_flLastFire = gpGlobals->time;
@@ -169,7 +173,10 @@ void CDEAGLE::DEAGLEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 4096, 2, BULLET_PLAYER_50AE, DEAGLE_DAMAGE, DEAGLE_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
+	const gw::WeaponMechanicsConfig &config = DeagleMechanics();
+	const gw::ShotOffset offset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, config.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * offset.x + gpGlobals->v_up * offset.y;
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 4096, 2, BULLET_PLAYER_50AE, DEAGLE_DAMAGE, DEAGLE_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -190,7 +197,10 @@ void CDEAGLE::DEAGLEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 #endif
 
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.8f;
-	m_pPlayer->pev->punchangle.x -= 2;
+	const gw::RecoilPoint recoil = gw::GetRecoil(config, m_ModernState.recoilIndex);
+	m_pPlayer->pev->punchangle.x -= recoil.vertical * config.viewScale;
+	m_pPlayer->pev->punchangle.y += recoil.horizontal * config.viewScale;
+	gw::CommitShot(config, m_ModernState, gpGlobals->time);
 	ResetPlayerShieldAnim();
 }
 
@@ -205,6 +215,7 @@ void CDEAGLE::Reload(void)
 		m_pPlayer->SetAnimation(PLAYER_RELOAD);
 #endif
 		m_flAccuracy = 0.9f;
+		ResetDeagleMechanics(this);
 	}
 }
 

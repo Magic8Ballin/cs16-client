@@ -16,6 +16,7 @@
 #define WEAPONS_H
 
 #include "effects.h"
+#include "../game_shared/weapon_mechanics.h"
 
 class CBasePlayer;
 extern int gmsgWeapPickup;
@@ -306,6 +307,7 @@ public:
 	float m_flAccuracy;
 	float m_flLastFire;
 	int m_iShotsFired;
+	gw::WeaponMechanicsState m_ModernState;
 	Vector m_vVecAiming;
 	string_t model_name;
 	float m_flGlock18Shoot;

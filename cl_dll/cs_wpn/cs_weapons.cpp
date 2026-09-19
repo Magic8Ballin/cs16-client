@@ -1185,6 +1185,9 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 		pCurrent->m_iWeaponState		= pfrom->m_iWeaponState;
 		pCurrent->m_flLastFire			= pfrom->m_fAimedDamage;
 		pCurrent->m_iShotsFired			= pfrom->m_fInZoom;
+		pCurrent->m_ModernState.firePenalty = pfrom->fuser1;
+		pCurrent->m_ModernState.recoilIndex = pfrom->fuser4;
+		pCurrent->m_ModernState.lastShotTime = (float)pfrom->iuser2 / 1000.0f;
 	}
 
 	if( from->client.vuser4.x < 0 || from->client.vuser4.x >= MAX_AMMO_TYPES )
@@ -1396,6 +1399,9 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 		pto->m_iWeaponState				= pCurrent->m_iWeaponState;
 		pto->m_fInZoom					= pCurrent->m_iShotsFired;
 		pto->m_fAimedDamage				= pCurrent->m_flLastFire;
+		pto->fuser1						= pCurrent->m_ModernState.firePenalty;
+		pto->fuser4						= pCurrent->m_ModernState.recoilIndex;
+		pto->iuser2						= (int)(pCurrent->m_ModernState.lastShotTime * 1000.0f);
 
 		// Decrement weapon counters, server does this at same time ( during post think, after doing everything else )
 		pto->m_flNextReload				-= cmd->msec / 1000.0f;
