@@ -122,6 +122,13 @@ void CUMP45::UMP45Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 		return;
 	}
 
+	const gw::WeaponMechanicsConfig &modernConfig = ModernMechanics();
+
+	flSpread = ModernInaccuracy();
+
+	flCycleTime = modernConfig.cycleTime;
+
+
 	--m_iClip;
 	m_pPlayer->pev->effects |= EF_MUZZLEFLASH;
 #ifndef CLIENT_DLL
@@ -131,8 +138,10 @@ void CUMP45::UMP45Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::ShotOffset modernOffset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, modernConfig.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * modernOffset.x + gpGlobals->v_up * modernOffset.y;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 8192, 1, BULLET_PLAYER_45ACP,
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 8192, 1, BULLET_PLAYER_45ACP,
 		UMP45_DAMAGE, UMP45_RANGE_MODIFER, m_pPlayer->pev, false, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
@@ -159,19 +168,19 @@ void CUMP45::UMP45Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 
 	if (!(m_pPlayer->pev->flags & FL_ONGROUND))
 	{
-		KickBack(0.125, 0.65, 0.55, 0.0475, 5.5, 4.0, 10);
+		ApplyModernRecoil();
 	}
 	else if (m_pPlayer->pev->velocity.Length2D() > 0)
 	{
-		KickBack(0.55, 0.3, 0.225, 0.03, 3.5, 2.5, 10);
+		ApplyModernRecoil();
 	}
 	else if (m_pPlayer->pev->flags & FL_DUCKING)
 	{
-		KickBack(0.25, 0.175, 0.125, 0.02, 2.25, 1.25, 10);
+		ApplyModernRecoil();
 	}
 	else
 	{
-		KickBack(0.275, 0.2, 0.15, 0.0225, 2.5, 1.5, 10);
+		ApplyModernRecoil();
 	}
 }
 
@@ -203,3 +212,4 @@ void CUMP45::WeaponIdle()
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 20.0f;
 	SendWeaponAnim(UMP45_IDLE1, UseDecrement() != FALSE);
 }
+

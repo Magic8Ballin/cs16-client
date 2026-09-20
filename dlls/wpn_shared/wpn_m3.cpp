@@ -121,7 +121,7 @@ void CM3::PrimaryAttack()
 	vecAiming = gpGlobals->v_forward;
 
 #ifndef CLIENT_DLL
-	m_pPlayer->FireBullets(9, vecSrc, vecAiming, M3_CONE_VECTOR, 3000, BULLET_PLAYER_BUCKSHOT, 0);
+	m_pPlayer->FireBullets(9, vecSrc, vecAiming, Vector(modernInaccuracy, modernInaccuracy, 0.0f), 3000, BULLET_PLAYER_BUCKSHOT, 0);
 #endif
 
 #ifdef CLIENT_WEAPONS
@@ -153,10 +153,7 @@ void CM3::PrimaryAttack()
 
 	m_fInSpecialReload = 0;
 
-	if (m_pPlayer->pev->flags & FL_ONGROUND)
-		m_pPlayer->pev->punchangle.x -= UTIL_SharedRandomLong(m_pPlayer->random_seed + 1, 4, 6);
-	else
-		m_pPlayer->pev->punchangle.x -= UTIL_SharedRandomLong(m_pPlayer->random_seed + 1, 8, 11);
+	ApplyModernRecoil();
 
 	m_pPlayer->m_flEjectBrass = gpGlobals->time + 0.45f;
 }
@@ -246,3 +243,4 @@ void CM3::WeaponIdle()
 		}
 	}
 }
+

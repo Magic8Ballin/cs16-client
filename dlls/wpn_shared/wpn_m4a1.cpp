@@ -14,11 +14,37 @@
 ****/
 
 #include "stdafx.h"
+#include "hud.h"
 #include "cbase.h"
 #include "player.h"
 #include "weapons.h"
 
 LINK_ENTITY_TO_CLASS(weapon_m4a1, CM4A1)
+
+static const gw::WeaponMechanicsConfig &M4A1Mechanics()
+{
+	static bool loaded = false;
+	static gw::WeaponMechanicsConfig config;
+	if (!loaded)
+	{
+		loaded = true;
+		config = gw::Defaults(true);
+		int length = 0;
+		char *json = (char *)gEngfuncs.COM_LoadFile("configs/weapons/m4a1.json", 5, &length);
+		gw::WeaponMechanicsConfig parsed;
+		if (json && gw::ParseConfig(json, parsed)) config = parsed;
+		else gEngfuncs.Con_Printf("Gloveworks: invalid/missing configs/weapons/m4a1.json; using safe defaults\n");
+		if (json) gEngfuncs.COM_FreeFile(json);
+	}
+	return config;
+}
+
+static void ResetM4A1Mechanics(CM4A1 *weapon)
+{
+	weapon->m_ModernState.firePenalty = 0.0f;
+	weapon->m_ModernState.recoilIndex = 0.0f;
+	weapon->m_ModernState.lastShotTime = 0.0f;
+}
 
 void CM4A1::Spawn(void)
 {
@@ -33,6 +59,7 @@ void CM4A1::Spawn(void)
 	m_flAccuracy = 0.2f;
 	m_iShotsFired = 0;
 	m_bDelayFire = true;
+	ResetM4A1Mechanics(this);
 
 	FallInit();
 }
@@ -78,6 +105,7 @@ BOOL CM4A1::Deploy()
 	m_bDelayFire = true;
 	m_flAccuracy = 0.2f;
 	m_iShotsFired = 0;
+	ResetM4A1Mechanics(this);
 
 	iShellOn = 1;
 
@@ -108,36 +136,12 @@ void CM4A1::SecondaryAttack()
 
 void CM4A1::PrimaryAttack()
 {
-	if (m_iWeaponState & WPNSTATE_M4A1_SILENCED)
-	{
-		if (!(m_pPlayer->pev->flags & FL_ONGROUND))
-		{
-			M4A1Fire(0.035 + (0.4 * m_flAccuracy), 0.0875, FALSE);
-		}
-		else if (m_pPlayer->pev->velocity.Length2D() > 140)
-		{
-			M4A1Fire(0.035 + (0.07 * m_flAccuracy), 0.0875, FALSE);
-		}
-		else
-		{
-			M4A1Fire(0.025 * m_flAccuracy, 0.0875, FALSE);
-		}
-	}
-	else
-	{
-		if (!(m_pPlayer->pev->flags & FL_ONGROUND))
-		{
-			M4A1Fire(0.035 + (0.4 * m_flAccuracy), 0.0875, FALSE);
-		}
-		else if (m_pPlayer->pev->velocity.Length2D() > 140)
-		{
-			M4A1Fire(0.035 + (0.07 * m_flAccuracy), 0.0875, FALSE);
-		}
-		else
-		{
-			M4A1Fire(0.02 * m_flAccuracy, 0.0875, FALSE);
-		}
-	}
+	const gw::WeaponMechanicsConfig &config = M4A1Mechanics();
+	gw::UpdateState(config, m_ModernState, gpGlobals->time, (m_pPlayer->pev->flags & FL_DUCKING) != 0);
+	const float inaccuracy = gw::ComputeInaccuracy(config, m_ModernState, m_pPlayer->pev->velocity.Length2D(),
+		GetMaxSpeed(), (m_pPlayer->pev->flags & FL_DUCKING) != 0, (m_pPlayer->pev->flags & FL_ONGROUND) != 0,
+		m_pPlayer->pev->movetype == MOVETYPE_FLY);
+	M4A1Fire(inaccuracy, config.cycleTime, FALSE);
 }
 
 void CM4A1::M4A1Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
@@ -146,13 +150,6 @@ void CM4A1::M4A1Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 	int flag;
 
 	m_bDelayFire = true;
-	++m_iShotsFired;
-
-	m_flAccuracy = ((m_iShotsFired * m_iShotsFired * m_iShotsFired) / 220) + 0.3f;
-
-	if (m_flAccuracy > 1)
-		m_flAccuracy = 1;
-
 	if (m_iClip <= 0)
 	{
 		if (m_fFireOnEmpty)
@@ -171,6 +168,8 @@ void CM4A1::M4A1Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 		return;
 	}
 
+	++m_iShotsFired;
+
 	--m_iClip;
 #ifndef CLIENT_DLL
 	m_pPlayer->SetAnimation(PLAYER_ATTACK1);
@@ -182,19 +181,23 @@ void CM4A1::M4A1Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::WeaponMechanicsConfig &config = M4A1Mechanics();
+	const gw::ShotOffset offset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, config.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * offset.x + gpGlobals->v_up * offset.y;
 
 	if (m_iWeaponState & WPNSTATE_M4A1_SILENCED)
 	{
-		vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 8192, 2, BULLET_PLAYER_556MM,
+		vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 8192, 2, BULLET_PLAYER_556MM,
 			M4A1_DAMAGE_SIL, M4A1_RANGE_MODIFER_SIL, m_pPlayer->pev, false, m_pPlayer->random_seed);
 	}
 	else
 	{
-		vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 8192, 2, BULLET_PLAYER_556MM,
+		vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 8192, 2, BULLET_PLAYER_556MM,
 			M4A1_DAMAGE, M4A1_RANGE_MODIFER, m_pPlayer->pev, false, m_pPlayer->random_seed);
 
 		m_pPlayer->pev->effects |= EF_MUZZLEFLASH;
 	}
+	vecDir = Vector(offset.x, offset.y, 0.0f);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -218,22 +221,10 @@ void CM4A1::M4A1Fire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 #endif
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.5f;
 
-	if (m_pPlayer->pev->velocity.Length2D() > 0)
-	{
-		KickBack(1.0, 0.45, 0.28, 0.045, 3.75, 3.0, 7);
-	}
-	else if (!(m_pPlayer->pev->flags & FL_ONGROUND))
-	{
-		KickBack(1.2, 0.5, 0.23, 0.15, 5.5, 3.5, 6);
-	}
-	else if (m_pPlayer->pev->flags & FL_DUCKING)
-	{
-		KickBack(0.6, 0.3, 0.2, 0.0125, 3.25, 2.0, 7);
-	}
-	else
-	{
-		KickBack(0.65, 0.35, 0.25, 0.015, 3.5, 2.25, 7);
-	}
+	const gw::RecoilPoint recoil = gw::GetRecoil(config, m_ModernState.recoilIndex);
+	m_pPlayer->pev->punchangle.x -= recoil.vertical;
+	m_pPlayer->pev->punchangle.y += recoil.horizontal;
+	gw::CommitShot(config, m_ModernState, gpGlobals->time);
 }
 
 void CM4A1::Reload()
@@ -248,6 +239,7 @@ void CM4A1::Reload()
 #endif
 		m_flAccuracy = 0.2f;
 		m_iShotsFired = 0;
+		ResetM4A1Mechanics(this);
 		m_bDelayFire = false;
 	}
 }

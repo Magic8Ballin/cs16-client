@@ -214,6 +214,13 @@ void CUSP::USPFire(float flSpread, float flCycleTime, BOOL fUseSemi)
 
 	m_flNextPrimaryAttack = m_flNextSecondaryAttack = GetNextAttackDelay(flCycleTime);
 
+	const gw::WeaponMechanicsConfig &modernConfig = ModernMechanics();
+
+	flSpread = ModernInaccuracy();
+
+	flCycleTime = modernConfig.cycleTime;
+
+
 	--m_iClip;
 	SetPlayerShieldAnim();
 
@@ -232,10 +239,12 @@ void CUSP::USPFire(float flSpread, float flCycleTime, BOOL fUseSemi)
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::ShotOffset modernOffset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, modernConfig.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * modernOffset.x + gpGlobals->v_up * modernOffset.y;
 
 	iDamage = (m_iWeaponState & WPNSTATE_USP_SILENCED) ? USP_DAMAGE_SIL : USP_DAMAGE;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 4096, 1, BULLET_PLAYER_45ACP, iDamage, USP_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 4096, 1, BULLET_PLAYER_45ACP, iDamage, USP_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -253,7 +262,7 @@ void CUSP::USPFire(float flSpread, float flCycleTime, BOOL fUseSemi)
 	}
 #endif
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 2.0f;
-	m_pPlayer->pev->punchangle.x -= 2.0f;
+	ApplyModernRecoil();
 	ResetPlayerShieldAnim();
 }
 
@@ -306,3 +315,4 @@ void CUSP::WeaponIdle()
 		SendWeaponAnim(iAnim, UseDecrement());
 	}
 }
+

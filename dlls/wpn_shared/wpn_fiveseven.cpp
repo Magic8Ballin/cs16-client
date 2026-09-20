@@ -153,6 +153,13 @@ void CFiveSeven::FiveSevenFire(float flSpread, float flCycleTime, BOOL fUseAutoA
 		return;
 	}
 
+	const gw::WeaponMechanicsConfig &modernConfig = ModernMechanics();
+
+	flSpread = ModernInaccuracy();
+
+	flCycleTime = modernConfig.cycleTime;
+
+
 	--m_iClip;
 	m_pPlayer->pev->effects |= EF_MUZZLEFLASH;
 	SetPlayerShieldAnim();
@@ -167,8 +174,10 @@ void CFiveSeven::FiveSevenFire(float flSpread, float flCycleTime, BOOL fUseAutoA
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::ShotOffset modernOffset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, modernConfig.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * modernOffset.x + gpGlobals->v_up * modernOffset.y;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 4096, 1, BULLET_PLAYER_57MM, FIVESEVEN_DAMAGE, FIVESEVEN_RANGE_MODIFER, m_pPlayer->pev, false, m_pPlayer->random_seed);
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 4096, 1, BULLET_PLAYER_57MM, FIVESEVEN_DAMAGE, FIVESEVEN_RANGE_MODIFER, m_pPlayer->pev, false, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -189,7 +198,7 @@ void CFiveSeven::FiveSevenFire(float flSpread, float flCycleTime, BOOL fUseAutoA
 #endif
 
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 2.0f;
-	m_pPlayer->pev->punchangle.x -= 2.0f;
+	ApplyModernRecoil();
 	ResetPlayerShieldAnim();
 }
 
@@ -232,3 +241,4 @@ void CFiveSeven::WeaponIdle(void)
 		SendWeaponAnim(FIVESEVEN_IDLE, UseDecrement() != FALSE);
 	}
 }
+

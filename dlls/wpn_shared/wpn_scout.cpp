@@ -161,6 +161,13 @@ void CSCOUT::SCOUTFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 		return;
 	}
 
+	const gw::WeaponMechanicsConfig &modernConfig = ModernMechanics();
+
+	flSpread = ModernInaccuracy();
+
+	flCycleTime = modernConfig.cycleTime;
+
+
 	--m_iClip;
 #ifndef CLIENT_DLL
 	m_pPlayer->SetAnimation(PLAYER_ATTACK1);
@@ -173,8 +180,10 @@ void CSCOUT::SCOUTFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::ShotOffset modernOffset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, modernConfig.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * modernOffset.x + gpGlobals->v_up * modernOffset.y;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 8192, 3, BULLET_PLAYER_762MM, SCOUT_DAMAGE, SCOUT_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 8192, 3, BULLET_PLAYER_762MM, SCOUT_DAMAGE, SCOUT_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -194,7 +203,7 @@ void CSCOUT::SCOUTFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 	}
 #endif
 	m_flTimeWeaponIdle = UTIL_WeaponTimeBase() + 1.8f;
-	m_pPlayer->pev->punchangle.x -= 2.0f;
+	ApplyModernRecoil();
 }
 
 void CSCOUT::Reload()
@@ -240,3 +249,4 @@ float CSCOUT::GetMaxSpeed()
 {
 	return (m_pPlayer->m_iFOV == DEFAULT_FOV) ? SCOUT_MAX_SPEED : SCOUT_MAX_SPEED_ZOOM;
 }
+

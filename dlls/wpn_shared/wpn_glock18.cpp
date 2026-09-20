@@ -223,6 +223,13 @@ void CGLOCK18::GLOCK18Fire(float flSpread, float flCycleTime, BOOL bFireBurst)
 		return;
 	}
 
+	const gw::WeaponMechanicsConfig &modernConfig = ModernMechanics();
+
+	flSpread = ModernInaccuracy();
+
+	flCycleTime = modernConfig.cycleTime;
+
+
 	--m_iClip;
 	m_pPlayer->pev->effects |= EF_MUZZLEFLASH;
 
@@ -238,8 +245,10 @@ void CGLOCK18::GLOCK18Fire(float flSpread, float flCycleTime, BOOL bFireBurst)
 
 	vecSrc = m_pPlayer->GetGunPosition();
 	vecAiming = gpGlobals->v_forward;
+	const gw::ShotOffset modernOffset = gw::ComputeShotOffset(m_pPlayer->random_seed, flSpread, modernConfig.baseSpread);
+	vecAiming = vecAiming + gpGlobals->v_right * modernOffset.x + gpGlobals->v_up * modernOffset.y;
 
-	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, flSpread, 8192, 1, BULLET_PLAYER_9MM, GLOCK18_DAMAGE, GLOCK18_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
+	vecDir = m_pPlayer->FireBullets3(vecSrc, vecAiming, 0.0f, 8192, 1, BULLET_PLAYER_9MM, GLOCK18_DAMAGE, GLOCK18_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
 #ifdef CLIENT_WEAPONS
 	flag = FEV_NOTHOST;
@@ -268,6 +277,7 @@ void CGLOCK18::GLOCK18Fire(float flSpread, float flCycleTime, BOOL bFireBurst)
 		++m_iGlock18ShotsFired;
 		m_flGlock18Shoot = gpGlobals->time + 0.1f;
 	}
+	ApplyModernRecoil();
 
 	ResetPlayerShieldAnim();
 }
@@ -340,3 +350,4 @@ void CGLOCK18::WeaponIdle(void)
 		SendWeaponAnim(iAnim, UseDecrement() != FALSE);
 	}
 }
+

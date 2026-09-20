@@ -275,6 +275,10 @@ public:
 	int SecondaryAmmoIndex(void) { return -1; }
 	void EjectBrassLate(void);
 	void KickBack(float up_base, float lateral_base, float up_modifier, float lateral_modifier, float up_max, float lateral_max, int direction_change);
+	const gw::WeaponMechanicsConfig &ModernMechanics();
+	float ModernInaccuracy();
+	void ApplyModernRecoil();
+	void ResetModernMechanics();
 	void FireRemaining(int &shotsFired, float &shootTime, BOOL isGlock18);
 	void SetPlayerShieldAnim(void);
 	void ResetPlayerShieldAnim(void);

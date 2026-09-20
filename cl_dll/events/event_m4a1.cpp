@@ -43,6 +43,15 @@ void EV_FireM4A1( event_args_t *args )
 	Vector ShellOrigin;
 	Vector vecSrc, vecAiming;
 	int    sequence, idx = args->entindex;
+	static int lastEventShooter = -1;
+	static float lastEventTime = -1.0f;
+	const float eventTime = gEngfuncs.GetClientTime();
+	const bool replayedLocalEvent = EV_IsLocal(idx) && lastEventShooter == idx && lastEventTime >= 0.0f
+		&& eventTime >= lastEventTime && eventTime - lastEventTime < 0.070f;
+	if (replayedLocalEvent)
+		return;
+	lastEventShooter = idx;
+	lastEventTime = eventTime;
 	Vector origin( args->origin );
 	Vector angles(
 		args->iparam1 / 100.0f + args->angles[0],

@@ -104,6 +104,7 @@ void CXM1014::PrimaryAttack()
 
 	m_pPlayer->m_iWeaponVolume = LOUD_GUN_VOLUME;
 	m_pPlayer->m_iWeaponFlash = BRIGHT_GUN_FLASH;
+	const float modernInaccuracy = ModernInaccuracy();
 	m_iClip--;
 
 	m_pPlayer->pev->effects |= EF_MUZZLEFLASH;
@@ -118,7 +119,7 @@ void CXM1014::PrimaryAttack()
 	vecAiming = gpGlobals->v_forward;
 
 #ifndef CLIENT_DLL
-	m_pPlayer->FireBullets(6, vecSrc, vecAiming, XM1014_CONE_VECTOR, 3048, BULLET_PLAYER_BUCKSHOT, 0);
+	m_pPlayer->FireBullets(6, vecSrc, vecAiming, Vector(modernInaccuracy, modernInaccuracy, 0.0f), 3048, BULLET_PLAYER_BUCKSHOT, 0);
 #endif
 
 #ifdef CLIENT_WEAPONS
@@ -150,10 +151,7 @@ void CXM1014::PrimaryAttack()
 
 	m_fInSpecialReload = 0;
 
-	if (m_pPlayer->pev->flags & FL_ONGROUND)
-		m_pPlayer->pev->punchangle.x -= UTIL_SharedRandomLong(m_pPlayer->random_seed + 1, 3, 5);
-	else
-		m_pPlayer->pev->punchangle.x -= UTIL_SharedRandomLong(m_pPlayer->random_seed + 1, 7, 10);
+	ApplyModernRecoil();
 }
 
 void CXM1014::Reload()
@@ -247,3 +245,4 @@ void CXM1014::WeaponIdle()
 		}
 	}
 }
+

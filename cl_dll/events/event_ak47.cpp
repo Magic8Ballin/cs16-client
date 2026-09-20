@@ -44,7 +44,7 @@ void EV_FireAK47( event_args_t *args )
 	static float lastEventTime = -1.0f;
 	const float eventTime = gEngfuncs.GetClientTime();
 	const bool replayedLocalEvent = EV_IsLocal(idx) && lastEventShooter == idx && lastEventTime >= 0.0f
-		&& eventTime - lastEventTime < 0.075f;
+		&& eventTime >= lastEventTime && eventTime - lastEventTime < 0.075f;
 	if (replayedLocalEvent)
 		return;
 	lastEventShooter = idx;
