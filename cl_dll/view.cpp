@@ -904,8 +904,10 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	if( gHUD.m_iFOV <= 40 )
 		view->model = NULL;
 
-	// Add in the punchangle, if any
-	pparams->viewangles = pparams->viewangles + pparams->punchangle;
+	// Keep authoritative/predicted AK punch intact for shot direction while
+	// presenting 30 percent less camera motion to the local player.
+	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.70f : 1.0f;
+	pparams->viewangles = pparams->viewangles + pparams->punchangle * punchScale;
 
 #if 0
 	// Include client side punch, too
@@ -1768,7 +1770,8 @@ void V_CalcThirdPersonRefdef( ref_params_t *pparams )
 
 	pparams->vieworg = pparams->simorg;
 	pparams->vieworg = pparams->vieworg + pparams->viewheight;
-	pparams->viewangles = pparams->cl_viewangles + pparams->punchangle + ev_punchangle;
+	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.70f : 1.0f;
+	pparams->viewangles = pparams->cl_viewangles + pparams->punchangle * punchScale + ev_punchangle;
 
 	v_angles = pparams->viewangles;
 	v_lastAngles = pparams->viewangles;
