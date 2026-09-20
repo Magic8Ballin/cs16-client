@@ -906,7 +906,7 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	// Keep authoritative/predicted AK punch intact for shot direction while
 	// presenting 30 percent less camera motion to the local player.
-	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.70f : 1.0f;
+	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.85f : 1.0f;
 	pparams->viewangles = pparams->viewangles + pparams->punchangle * punchScale;
 
 #if 0
@@ -1770,7 +1770,7 @@ void V_CalcThirdPersonRefdef( ref_params_t *pparams )
 
 	pparams->vieworg = pparams->simorg;
 	pparams->vieworg = pparams->vieworg + pparams->viewheight;
-	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.70f : 1.0f;
+	const float punchScale = HUD_GetWeapon() == WEAPON_AK47 ? 0.85f : 1.0f;
 	pparams->viewangles = pparams->cl_viewangles + pparams->punchangle * punchScale + ev_punchangle;
 
 	v_angles = pparams->viewangles;
