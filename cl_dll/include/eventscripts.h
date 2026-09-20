@@ -15,8 +15,8 @@
 #include "r_efx.h"
 
 // defaults for clientinfo messages
-#define	DEFAULT_VIEWHEIGHT	17
-#define VEC_DUCK_VIEW 12
+#define	DEFAULT_VIEWHEIGHT	28
+#define VEC_DUCK_VIEW 28
 
 #define FTENT_FADEOUT			0x00000080
 

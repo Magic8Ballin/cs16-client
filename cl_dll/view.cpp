@@ -691,6 +691,7 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	static viewinterp_t		ViewInterp;
 
 	static float oldz = 0;
+	static float oldViewHeight = 0;
 	static float lasttime;
 
 	vec3_t camAngles, camForward, camRight, camUp;
@@ -715,7 +716,6 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 
 	// refresh position
 	VectorCopy ( pparams->simorg, pparams->vieworg );
-	pparams->vieworg[2] += ( bob );
 	VectorAdd( pparams->vieworg, pparams->viewheight, pparams->vieworg );
 
 	if( pparams->health <= 0 )
@@ -915,7 +915,16 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 #endif
 	// smooth out stair step ups
 #if 1
-	if ( !pparams->smoothing && pparams->onground && pparams->simorg[2] - oldz > 0)
+	float originRise = pparams->simorg[2] - oldz;
+	float viewDrop = oldViewHeight - pparams->viewheight[2];
+	// Completing an unduck moves the predicted origin up by the hull delta and
+	// resets the temporary local eye offset by the same amount. On slopes the
+	// origin also contains ordinary ground-height movement, so comparing the two
+	// deltas misclassifies the stance change as a stair step and creates a one-
+	// frame camera dip. The large local-eye reset is the stable transition signal.
+	bool stanceOriginShift = viewDrop > 8.0f;
+
+	if ( !pparams->smoothing && pparams->onground && originRise > 0 && !stanceOriginShift)
 	{
 		float steptime;
 
@@ -936,6 +945,7 @@ void V_CalcNormalRefdef ( struct ref_params_s *pparams )
 	{
 		oldz = pparams->simorg[2];
 	}
+	oldViewHeight = pparams->viewheight[2];
 #endif
 
 	static Vector lastorg;
@@ -1483,7 +1493,7 @@ void V_GetInEyePos(int target, float * origin, float * angles )
 		origin[2]+= -8 ; // PM_DEAD_VIEWHEIGHT
 	}
 	else if (ent->curstate.usehull == 1 )
-		origin[2]+= 12; // VEC_DUCK_VIEW;
+		origin[2]+= 28; // VEC_DUCK_VIEW;
 	else
 		// exacty eye position can't be calculated since it depends on
 		// client values like cl_bobcycle, this offset matches the default values

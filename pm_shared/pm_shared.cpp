@@ -33,7 +33,13 @@
 const int MAX_TEXTURES           = 1024; // max number of textures loaded
 const int MAX_TEXTURENAME_LENGHT = 17;   // only load first n chars of name
 const float HalfHumanHeight = 36.0f;
-const float landing_momentum_scale = 0.70f;
+const float landing_stamina_cost = 0.05f;
+const float jump_stamina_cost = 0.08f;
+const float landing_stamina_recovery_rate = 60.0f;
+const float landing_stamina_max = 80.0f;
+const float landing_stamina_range = 100.0f;
+const float csgo_jump_impulse = 301.993377f;
+const float csgo_ground_acceleration_speed = 250.0f;
 
 #ifdef CLIENT_DLL
 	int iJumpSpectator;
@@ -881,7 +887,7 @@ void PM_Accelerate(vec_t *wishdir, float wishspeed, float accel)
 		return;
 
 	// Determine amount of accleration.
-	accelspeed = accel * pmove->frametime * wishspeed * pmove->friction;
+	accelspeed = accel * pmove->frametime * max(wishspeed, csgo_ground_acceleration_speed) * pmove->friction;
 
 	// Cap at addspeed
 	if (accelspeed > addspeed)
@@ -902,7 +908,7 @@ void PM_WalkMove()
 	int i;
 
 	vec3_t wishvel;
-	float spd;
+	float spd, maxspeed;
 	float fmove, smove;
 	vec3_t wishdir;
 	float wishspeed;
@@ -939,12 +945,19 @@ void PM_WalkMove()
 	// Determine maginitude of speed of move
 	VectorCopy(wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
+	maxspeed = pmove->maxspeed;
+
+	if (pmove->fuser1 > 0.0f)
+	{
+		float speedScale = max(0.0f, 1.0f - pmove->fuser1 / landing_stamina_range);
+		maxspeed *= speedScale * speedScale;
+	}
 
 	// Clamp to server defined max speed
-	if (wishspeed > pmove->maxspeed)
+	if (wishspeed > maxspeed)
 	{
-		VectorScale(wishvel, pmove->maxspeed / wishspeed, wishvel);
-		wishspeed = pmove->maxspeed;
+		VectorScale(wishvel, maxspeed / wishspeed, wishvel);
+		wishspeed = maxspeed;
 	}
 
 	// Set pmove velocity
@@ -1781,6 +1794,29 @@ float PM_SplineFraction(float value, float scale)
 	return 3 * valueSquared - 2 * valueSquared * value;
 }
 
+// Recover the linear progress that produced a smoothstep value. This lets an
+// interrupted crouch reverse without snapping or changing the collision hull.
+static float PM_InverseSplineFraction(float value)
+{
+	float low = 0.0f;
+	float high = 1.0f;
+
+	if (value < 0.0f)
+		value = 0.0f;
+	else if (value > 1.0f)
+		value = 1.0f;
+	for (int i = 0; i < 12; ++i)
+	{
+		float middle = (low + high) * 0.5f;
+		if (PM_SplineFraction(middle, 1.0f) < value)
+			low = middle;
+		else
+			high = middle;
+	}
+
+	return (low + high) * 0.5f;
+}
+
 float PM_SimpleSpline(float value)
 {
 	float valueSquared;
@@ -1824,6 +1860,38 @@ void PM_UnDuck()
 {
 	pmtrace_t trace;
 	vec3_t newOrigin;
+	float fMore;
+	float duckFraction;
+	float linearFraction;
+	bool fullyDucked = (pmove->flags & FL_DUCKING) != 0;
+
+#ifdef REGAMEDLL_FIXES
+	fMore = pmove->player_mins[1][2] - pmove->player_mins[0][2];
+#else
+	fMore = PM_VEC_DUCK_HULL_MIN - PM_VEC_HULL_MIN;
+#endif
+
+	if (!fullyDucked)
+	{
+		// Reverse an in-progress crouch while the origin still uses the standing hull.
+		float range = PM_VEC_VIEW - (PM_VEC_DUCK_VIEW - fMore);
+		duckFraction = range > 0.0f ? (PM_VEC_VIEW - pmove->view_ofs[2]) / range : 0.0f;
+		linearFraction = PM_InverseSplineFraction(duckFraction);
+		linearFraction -= pmove->cmd.msec / (TIME_TO_UNDUCK * 1000.0f);
+
+		if (linearFraction <= 0.0f)
+		{
+			pmove->bInDuck = FALSE;
+			pmove->flDuckTime = 0;
+			pmove->view_ofs[2] = PM_VEC_VIEW;
+		}
+		else
+		{
+			duckFraction = PM_SplineFraction(linearFraction, 1.0f);
+			pmove->view_ofs[2] = ((PM_VEC_DUCK_VIEW - fMore) * duckFraction) + (PM_VEC_VIEW * (1.0f - duckFraction));
+		}
+		return;
+	}
 
 	VectorCopy(pmove->origin, newOrigin);
 
@@ -1841,6 +1909,23 @@ void PM_UnDuck()
 	trace = pmove->PM_PlayerTrace(newOrigin, newOrigin, PM_NORMAL, -1);
 	if (!trace.startsolid)
 	{
+		// CS:GO completes air unducks immediately. Grounded unducks use the
+		// same 200 ms smoothstep curve as crouching.
+		if (pmove->onground != -1)
+		{
+			float range = (PM_VEC_VIEW + fMore) - PM_VEC_DUCK_VIEW;
+			duckFraction = range > 0.0f ? ((PM_VEC_VIEW + fMore) - pmove->view_ofs[2]) / range : 0.0f;
+			linearFraction = PM_InverseSplineFraction(duckFraction);
+			linearFraction -= pmove->cmd.msec / (TIME_TO_UNDUCK * 1000.0f);
+
+			if (linearFraction > 0.0f)
+			{
+				duckFraction = PM_SplineFraction(linearFraction, 1.0f);
+				pmove->view_ofs[2] = (PM_VEC_DUCK_VIEW * duckFraction) + ((PM_VEC_VIEW + fMore) * (1.0f - duckFraction));
+				return;
+			}
+		}
+
 		pmove->usehull = 0;
 
 		// Oh, no, changing hulls stuck us into something, try unsticking downward first.
@@ -1913,6 +1998,15 @@ void PM_Duck()
 	pmove->cmd.forwardmove *= PLAYER_DUCKING_MULTIPLIER;
 	pmove->cmd.sidemove *= PLAYER_DUCKING_MULTIPLIER;
 	pmove->cmd.upmove *= PLAYER_DUCKING_MULTIPLIER;
+
+	// Pressing crouch again reverses an in-progress grounded unduck.
+	if ((pmove->cmd.buttons & IN_DUCK) && (pmove->flags & FL_DUCKING) && pmove->view_ofs[2] != PM_VEC_DUCK_VIEW)
+	{
+		pmove->bInDuck = FALSE;
+		pmove->flDuckTime = 0;
+		pmove->view_ofs[2] = PM_VEC_DUCK_VIEW;
+		return;
+	}
 
 	if (pmove->cmd.buttons & IN_DUCK)
 	{
@@ -2347,7 +2441,7 @@ void PM_PreventMegaBunnyJumping()
 		return;
 
 	// Returns the modifier for the velocity
-	fraction = (maxscaledspeed / spd) * 0.8;
+	fraction = maxscaledspeed / spd;
 
 	// Crop it down!.
 	VectorScale(pmove->velocity, fraction, pmove->velocity);
@@ -2466,18 +2560,29 @@ void PM_Jump()
 				pmove->velocity[i] = pmove->forward[i] * PLAYER_LONGJUMP_SPEED * 1.6f;
 			}
 
-			pmove->velocity[2] =  sqrt(2 * 800 * 56.0f);
+			pmove->velocity[2] = csgo_jump_impulse;
 		}
 		else
 		{
-			pmove->velocity[2] =  sqrt(2 * 800 * 45.0f);
+			pmove->velocity[2] = csgo_jump_impulse;
 		}
 	}
 	else
 #endif
 	{
 		// NOTE: don't do it in .f (float)
-		pmove->velocity[2] =  sqrt(2.0 * 800.0f * 45.0f);
+		pmove->velocity[2] = csgo_jump_impulse;
+	}
+
+	if (pmove->fuser1 > 0.0f)
+	{
+		pmove->velocity[2] *= max(0.0f, 1.0f - pmove->fuser1 / landing_stamina_range);
+	}
+
+	pmove->fuser1 += jump_stamina_cost * csgo_jump_impulse;
+	if (pmove->fuser1 > landing_stamina_max)
+	{
+		pmove->fuser1 = landing_stamina_max;
 	}
 
 	if (pmove->fuser2 > 0.0f)
@@ -2790,6 +2895,16 @@ void PM_ReduceTimers()
 			pmove->fuser2 = 0;
 		}
 	}
+
+	if (pmove->fuser1 > 0.0f)
+	{
+		pmove->fuser1 -= pmove->cmd.msec * 0.001f * landing_stamina_recovery_rate;
+
+		if (pmove->fuser1 < 0.0f)
+		{
+			pmove->fuser1 = 0.0f;
+		}
+	}
 }
 
 qboolean PM_ShouldDoSpectMode()
@@ -3033,8 +3148,12 @@ void PM_PlayerMove(qboolean server)
 
 			if (wasAirborne && pmove->onground != -1)
 			{
-				pmove->velocity[0] *= landing_momentum_scale;
-				pmove->velocity[1] *= landing_momentum_scale;
+				pmove->fuser1 += landing_stamina_cost * max(0.0f, pmove->flFallVelocity);
+
+				if (pmove->fuser1 > landing_stamina_max)
+				{
+					pmove->fuser1 = landing_stamina_max;
+				}
 			}
 
 			// Add any remaining gravitational component.
@@ -3208,6 +3327,15 @@ void PM_Move(playermove_t *ppmove, int server)
 		pmove->flags |= FL_ONGROUND;
 	else
 		pmove->flags &= ~FL_ONGROUND;
+
+	const char *movementDebug = pmove->PM_Info_ValueForKey(pmove->physinfo, "gw_move_debug");
+	if (movementDebug && movementDebug[0] == '1')
+	{
+		pmove->Con_Printf("gw_move side=%s ms=%d org=%.3f,%.3f,%.3f viewz=%.3f hull=%d ground=%d vel=%.3f,%.3f,%.3f stamina=%.3f buttons=%d duck=%d flags=%d\n",
+			server ? "server" : "client", pmove->cmd.msec, pmove->origin[0], pmove->origin[1], pmove->origin[2],
+			pmove->view_ofs[2], pmove->usehull, pmove->onground, pmove->velocity[0], pmove->velocity[1],
+			pmove->velocity[2], pmove->fuser1, pmove->cmd.buttons, pmove->bInDuck, pmove->flags);
+	}
 
 	if (!pmove->multiplayer && pmove->movetype == MOVETYPE_WALK)
 	{
