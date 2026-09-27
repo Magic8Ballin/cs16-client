@@ -1227,6 +1227,8 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 	player.pev->waterlevel = from->client.waterlevel;
 	player.pev->maxspeed   = from->client.maxspeed;
 	player.pev->punchangle = from->client.punchangle;
+	player.pev->vuser1 = from->client.vuser1;
+	player.pev->fuser4 = from->client.fuser4;
 	player.pev->fov        = from->client.fov;
 	player.pev->weaponanim = from->client.weaponanim;
 	player.pev->viewmodel  = from->client.viewmodel;
@@ -1338,6 +1340,8 @@ void HUD_WeaponsPostThink( local_state_s *from, local_state_s *to, usercmd_t *cm
 	to->client.m_flNextAttack			= player.m_flNextAttack;
 	to->client.maxspeed					= player.pev->maxspeed;
 	to->client.punchangle				= player.pev->punchangle;
+	to->client.vuser1					= player.pev->vuser1;
+	to->client.fuser4					= player.pev->fuser4;
 
 
 	to->client.ammo_nails = player.ammo_9mm;

@@ -211,6 +211,8 @@ void DLLEXPORT HUD_TxferPredictionData ( struct entity_state_s *ps, const struct
 	pcd->fuser1	= ppcd->fuser1;
 	pcd->fuser2	= ppcd->fuser2;
 	pcd->fuser3	= ppcd->fuser3;
+	pcd->fuser4	= ppcd->fuser4;
+	pcd->vuser1 = ppcd->vuser1;
 	pcd->vuser2 = ppcd->vuser2;
 	pcd->vuser3 = ppcd->vuser3;
 	pcd->vuser4 = ppcd->vuser4;
