@@ -2783,7 +2783,7 @@ void PM_DropPunchAngle(vec_t *punchangle)
 		VectorScale(punchangle, expf(-8.0f * frameTime), punchangle);
 
 		float len = VectorNormalize(punchangle);
-		len = max(len - 36.0f * frameTime, 0.0f);
+		len = max(len - 28.8f * frameTime, 0.0f);
 		VectorScale(punchangle, len, punchangle);
 
 		VectorMA(punchangle, frameTime * 0.5f, pmove->vuser1, punchangle);
