@@ -23,7 +23,11 @@ struct WeaponMechanicsConfig
 	float crouchInaccuracy;
 	float moveInaccuracy;
 	float airInaccuracy;
+	float jumpInitialInaccuracy;
+	float jumpReferenceSpeed;
+	float landInaccuracy;
 	float ladderInaccuracy;
+	float movementReferenceSpeed;
 	float moveStartFraction;
 	float moveFullFraction;
 	float moveExponent;
@@ -78,7 +82,11 @@ inline WeaponMechanicsConfig Defaults(bool ak47)
 	c.crouchInaccuracy = ak47 ? 0.0045f : 0.0055f;
 	c.moveInaccuracy = ak47 ? 0.0750f : 0.0950f;
 	c.airInaccuracy = ak47 ? 0.2900f : 0.3600f;
+	c.jumpInitialInaccuracy = 0.1000f;
+	c.jumpReferenceSpeed = 301.993377f;
+	c.landInaccuracy = 0.0f;
 	c.ladderInaccuracy = ak47 ? 0.1200f : 0.1500f;
+	c.movementReferenceSpeed = ak47 ? 215.0f : 230.0f;
 	c.moveStartFraction = ak47 ? 0.34f : 0.30f;
 	c.moveFullFraction = 0.95f;
 	c.moveExponent = 2.0f;
@@ -160,6 +168,8 @@ inline ShotOffset ComputeShotOffset(int seed, float inaccuracy, float spread)
 
 inline float MovementPenalty(const WeaponMechanicsConfig &config, float speed, float maxSpeed)
 {
+	if (config.movementReferenceSpeed > 0.0f)
+		maxSpeed = config.movementReferenceSpeed;
 	if (maxSpeed <= 0.0f)
 		return 0.0f;
 	const float fraction = speed / maxSpeed;
@@ -197,15 +207,24 @@ inline void UpdateState(const WeaponMechanicsConfig &config, WeaponMechanicsStat
 }
 
 inline float ComputeInaccuracy(const WeaponMechanicsConfig &config, const WeaponMechanicsState &state,
-	float speed, float maxSpeed, bool crouched, bool onGround, bool onLadder)
+	float speed, float verticalSpeed, float maxSpeed, bool crouched, bool onGround, bool onLadder)
 {
 	float result = crouched ? config.crouchInaccuracy : config.standInaccuracy;
 	result += MovementPenalty(config, speed, maxSpeed);
-	if (!onGround)
-		result += config.airInaccuracy;
 	if (onLadder)
 		result += config.ladderInaccuracy;
-	return result + state.firePenalty;
+	else if (!onGround)
+	{
+		result += config.airInaccuracy;
+		if (config.jumpInitialInaccuracy > 0.0f && config.jumpReferenceSpeed > 0.0f)
+		{
+			const float sqrtReference = sqrtf(config.jumpReferenceSpeed);
+			const float sqrtVertical = sqrtf(fabsf(verticalSpeed));
+			const float t = (sqrtVertical - sqrtReference * 0.25f) / (sqrtReference * 0.75f);
+			result += Clamp(t * config.jumpInitialInaccuracy, 0.0f, 2.0f * config.jumpInitialInaccuracy);
+		}
+	}
+	return Clamp(result + state.firePenalty, 0.0f, 1.0f);
 }
 
 inline RecoilPoint GetRecoil(const WeaponMechanicsConfig &config, float recoilIndex, int selectionSeed = -1)
@@ -219,7 +238,9 @@ inline RecoilPoint GetRecoil(const WeaponMechanicsConfig &config, float recoilIn
 		long iv[ntab];
 		float angle = 0.0f;
 		float magnitude = 0.0f;
-		const int wanted = (selectionSeed >= 0 ? selectionSeed : (int)recoilIndex) & 63;
+		int wanted = selectionSeed >= 0 ? (selectionSeed & 63) : (int)recoilIndex;
+		if (wanted < 0) wanted = 0;
+		if (wanted > 255) wanted = 255;
 		for (int shot = 0; shot <= wanted; ++shot)
 		{
 			float randoms[2];
@@ -349,12 +370,12 @@ inline bool ParseConfig(const char *json, WeaponMechanicsConfig &config)
 {
 	if (!json || !ReadBool(json, "enabled", config.enabled)) return false;
 	const char *keys[] = { "baseSpread", "standInaccuracy", "crouchInaccuracy", "moveInaccuracy",
-		"airInaccuracy", "ladderInaccuracy", "moveStartFraction", "moveFullFraction", "moveExponent",
+		"airInaccuracy", "jumpInitialInaccuracy", "jumpReferenceSpeed", "landInaccuracy", "ladderInaccuracy", "movementReferenceSpeed", "moveStartFraction", "moveFullFraction", "moveExponent",
 		"fireImpulse", "recoveryStandEarly", "recoveryStandFinal", "recoveryCrouchEarly",
 		"recoveryCrouchFinal", "recoveryTransitionStart", "recoveryTransitionEnd", "maxFirePenalty",
 		"cycleTime", "decayDelayCycles", "indexDecayRate", "viewScale", "varianceScale" };
 	float *values[] = { &config.baseSpread, &config.standInaccuracy, &config.crouchInaccuracy, &config.moveInaccuracy,
-		&config.airInaccuracy, &config.ladderInaccuracy, &config.moveStartFraction, &config.moveFullFraction,
+		&config.airInaccuracy, &config.jumpInitialInaccuracy, &config.jumpReferenceSpeed, &config.landInaccuracy, &config.ladderInaccuracy, &config.movementReferenceSpeed, &config.moveStartFraction, &config.moveFullFraction,
 		&config.moveExponent, &config.fireImpulse, &config.recoveryStandEarly, &config.recoveryStandFinal,
 		&config.recoveryCrouchEarly, &config.recoveryCrouchFinal, &config.recoveryTransitionStart,
 		&config.recoveryTransitionEnd, &config.maxFirePenalty, &config.cycleTime, &config.decayDelayCycles,
@@ -378,7 +399,9 @@ inline bool ParseConfig(const char *json, WeaponMechanicsConfig &config)
 	config.wrapPattern = endPolicy && strstr(endPolicy, "wrap") && (!strchr(endPolicy, ',') || strstr(endPolicy, "wrap") < strchr(endPolicy, ','));
 	if (!config.procedural && !ParsePattern(json, config)) return false;
 	return config.baseSpread >= 0.0f && config.standInaccuracy >= 0.0f && config.crouchInaccuracy >= 0.0f
-		&& config.moveInaccuracy >= 0.0f && config.airInaccuracy >= 0.0f && config.ladderInaccuracy >= 0.0f
+		&& config.moveInaccuracy >= 0.0f && config.airInaccuracy >= 0.0f && config.jumpInitialInaccuracy >= 0.0f
+		&& config.jumpReferenceSpeed > 0.0f && config.landInaccuracy >= 0.0f
+		&& config.ladderInaccuracy >= 0.0f && config.movementReferenceSpeed > 0.0f
 		&& config.moveStartFraction >= 0.0f && config.moveFullFraction > config.moveStartFraction
 		&& config.moveFullFraction <= 1.0f && config.moveExponent > 0.0f && config.fireImpulse >= 0.0f
 		&& config.recoveryStandEarly > 0.0f && config.recoveryStandFinal > 0.0f

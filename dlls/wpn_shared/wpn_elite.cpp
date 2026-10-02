@@ -196,8 +196,8 @@ void CELITE::ELITEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 		vecDir = m_pPlayer->FireBullets3(vecSrc - gpGlobals->v_right * 5, vecAiming, 0.0f,
 			8192, BULLET_PLAYER_9MM, 1, ELITE_DAMAGE, ELITE_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
-		PLAYBACK_EVENT_FULL(flag, m_pPlayer->edict(), m_usFireELITE_LEFT, 0, (float *)&g_vecZero, (float *)&g_vecZero, flTimeDiff, vecDir.x,
-			int(vecDir.y * 100), m_iClip, FALSE, FALSE);
+		PLAYBACK_EVENT_FULL(flag, m_pPlayer->edict(), m_usFireELITE_LEFT, 0, (float *)&g_vecZero, (float *)&g_vecZero, flTimeDiff, modernOffset.x,
+			int(modernOffset.y * 100), m_iClip, FALSE, FALSE);
 	}
 	else
 	{
@@ -209,8 +209,8 @@ void CELITE::ELITEFire(float flSpread, float flCycleTime, BOOL fUseAutoAim)
 		vecDir = m_pPlayer->FireBullets3(vecSrc + gpGlobals->v_right * 5, vecAiming, 0.0f,
 			8192, BULLET_PLAYER_9MM, 1, ELITE_DAMAGE, ELITE_RANGE_MODIFER, m_pPlayer->pev, true, m_pPlayer->random_seed);
 
-		PLAYBACK_EVENT_FULL(flag, m_pPlayer->edict(), m_usFireELITE_RIGHT, 0, (float *)&g_vecZero, (float *)&g_vecZero, flTimeDiff, vecDir.x,
-			int(vecDir.y * 100), m_iClip, FALSE, FALSE);
+		PLAYBACK_EVENT_FULL(flag, m_pPlayer->edict(), m_usFireELITE_RIGHT, 0, (float *)&g_vecZero, (float *)&g_vecZero, flTimeDiff, modernOffset.x,
+			int(modernOffset.y * 100), m_iClip, FALSE, FALSE);
 	}
 
 #ifndef CLIENT_DLL
